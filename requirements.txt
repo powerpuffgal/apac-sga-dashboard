@@ -1,0 +1,4 @@
+openpyxl>=3.1
+pytest>=7
+# optional: only needed for the AI commentary drafter (sga/commentary.py --ai)
+anthropic>=0.40

@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SG&amp;A Pulse (Synthetic Demo)</title>
+<style>
+:root{--bg:#f7f7f9;--card:#fff;--ink:#1b1d24;--muted:#646a78;--line:#e3e5ea;
+--fav:#1f8a5b;--unf:#c2412d;--plan:#9aa1ae;--accent:#4b4fd6;--warn-bg:#fff4d6;--warn:#7a5a00}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121318;--card:#1b1d24;
+--ink:#eceef3;--muted:#9aa1ae;--line:#2c2f39;--fav:#46c08a;--unf:#ef6a55;--plan:#5d6371;
+--accent:#8f92ff;--warn-bg:#3a3010;--warn:#f1d27a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+header{padding:16px;border-bottom:1px solid var(--line);background:var(--card)}
+h1{margin:0;font-size:18px}
+.sub{color:var(--muted);font-size:12px}
+.banner{background:var(--warn-bg);color:var(--warn);padding:8px 16px;font-size:12px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;padding:12px 16px;align-items:center}
+select,button{font:inherit;color:inherit;background:var(--card);border:1px solid var(--line);
+border-radius:6px;padding:6px 10px;cursor:pointer}
+button.on{border-color:var(--accent);color:var(--accent);font-weight:600}
+main{padding:0 16px 32px;display:grid;gap:16px;grid-template-columns:minmax(0,2fr) minmax(0,1fr)}
+@media (max-width:900px){main{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto}
+.card h2{margin:0 0 10px;font-size:14px}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--muted);font-weight:500;font-size:12px}
+tr.total td{font-weight:600}
+tr.detail td:first-child{padding-left:22px;color:var(--muted)}
+.fav{color:var(--fav)}.unf{color:var(--unf)}
+.badge{display:inline-block;font-size:10px;padding:1px 5px;border-radius:4px;background:var(--warn-bg);color:var(--warn);margin-left:4px}
+.meter{position:relative;height:10px;background:var(--line);border-radius:5px;min-width:120px}
+.meter i{position:absolute;top:0;bottom:0;left:0;border-radius:5px}
+.meter b{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--ink)}
+.div{display:flex;align-items:center;gap:6px}
+.div span{display:block;height:8px;border-radius:3px}
+ul{padding-left:18px;margin:6px 0}
+li{margin:4px 0}
+.flags li{color:var(--warn)}
+td[title]{cursor:help}
+footer{color:var(--muted);font-size:12px;padding:0 16px 24px}
+</style>
+</head>
+<body>
+<div class="banner">Synthetic demo data. "APAC Co." is fictional and every figure was randomly generated. No real company's financials are shown.</div>
+<header><h1>SG&amp;A Pulse</h1><div class="sub" id="sub"></div></header>
+<div class="bar">
+  <select id="dept" aria-label="Department"></select>
+  <span id="periods"></span>
+  <span id="layers"></span>
+</div>
+<main>
+  <section class="card" id="view"></section>
+  <aside class="card" id="side"></aside>
+</main>
+<footer>Hover any figure to see the workbook cell it was read from. F = favorable (below plan), U = unfavorable.</footer>
+<script>
+const P = /*__DATA__*/null;
+const S = {dept: "ALL", period: "YTD", layer: "executive"};
+const $ = id => document.getElementById(id);
+const k = v => v == null ? "-" : (Math.abs(v) >= 1e6 ? (v/1e6).toFixed(2)+"M" : (v/1e3).toFixed(0)+"K");
+const dl = v => `<span class="${v>0?"fav":v<0?"unf":""}">${k(Math.abs(v))} ${v>0?"F":v<0?"U":""}</span>`;
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const G = g => P.geoLabels[g] || g;
+
+function buttons(el, items, key){
+  $(el).innerHTML = items.map(([v,l]) => `<button data-v="${v}" class="${S[key]===v?"on":""}">${l}</button>`).join(" ");
+  $(el).onclick = e => { const v = e.target.dataset.v; if (v){ S[key] = v; render(); } };
+}
+
+function executive(d){
+  const names = {HC:"Headcount", NONHC:"Non-headcount", TOTAL:"Total"};
+  let h = `<h2>Executive: actual vs plan by market (${S.period}${S.period==="FY"?" forecast":""})</h2>`;
+  for (const b of ["TOTAL","HC","NONHC"]){
+    const rows = d.executive[b]; const max = Math.max(...rows.filter(r=>r.geo!=="APAC_TOTAL").map(r=>Math.max(r.actual,r.plan)));
+    h += `<h2 style="margin-top:14px">${names[b]}</h2><table><tr><th>Market</th><th>Actual</th><th>Plan</th><th>Variance</th><th style="text-align:left">Actual vs plan</th></tr>`;
+    for (const r of rows){
+      const tot = r.geo === "APAC_TOTAL", over = r.actual > r.plan;
+      const meter = tot ? "" : `<div class="meter"><i style="width:${100*r.actual/max}%;background:${over?"var(--unf)":"var(--fav)"}"></i><b style="left:${100*r.plan/max}%"></b></div>`;
+      h += `<tr class="${tot?"total":""}"><td>${G(r.geo)}</td><td title="${esc(r.source.join(", "))}">${k(r.actual)}</td><td>${k(r.plan)}</td><td>${dl(r.delta)}${r.corrected?'<span class="badge">corrected</span>':""}</td><td style="text-align:left">${meter}</td></tr>`;
+    }
+    h += "</table>";
+  }
+  return h;
+}
+
+function functional(d){
+  const rows = d.functional; const max = Math.max(...rows.map(r=>Math.abs(r.delta||0)), 1);
+  let h = `<h2>Functional: nature of cost, APAC total, sorted by variance (${S.period})</h2><table><tr><th>Line</th><th>Actual</th><th>Plan</th><th>Variance</th><th style="text-align:left"></th></tr>`;
+  for (const r of rows){
+    const w = 60*Math.abs(r.delta||0)/max;
+    h += `<tr class="${r.detail?"detail":""}"><td>${esc(r.line)}</td><td title="${esc(r.source)}">${k(r.actual)}</td><td>${k(r.plan)}</td><td>${dl(r.delta)}${r.corrected?'<span class="badge">corrected</span>':""}</td><td style="text-align:left"><div class="div"><span style="width:${w}px;background:${r.delta>=0?"var(--fav)":"var(--unf)"}"></span></div></td></tr>`;
+  }
+  return h + "</table>";
+}
+
+function regional(d){
+  if (!d.regional) return `<h2>Regional ledger</h2><p class="sub">Pick a single department to see its full ledger.</p>`;
+  let h = `<h2>Regional: full ledger, variance by market (${S.period})</h2><table><tr><th>Line</th>${P.geos.map(g=>`<th>${G(g)}</th>`).join("")}</tr>`;
+  for (const row of d.regional){
+    const tot = row.bucket === "TOTAL";
+    h += `<tr class="${tot?"total":""}"><td>${esc(row.line)}</td>` + P.geos.map(g => {
+      const c = row.cells[g]; return `<td title="${esc(c.source)}: actual ${k(c.actual)}, plan ${k(c.plan)}">${dl(c.delta)}${c.corrected?'<span class="badge">fix</span>':""}</td>`;
+    }).join("") + "</tr>";
+  }
+  return h + "</table>";
+}
+
+function side(d){
+  if (!d.commentary){
+    const issues = P.issues;
+    return `<h2>Data checks</h2><p class="sub">${issues.length} issue(s) found during extraction.</p><ul class="flags">${issues.map(i=>`<li>${esc(i.department)} ${esc(i.geo||"")}: ${esc(i.issue.replace(/_/g," "))} (${esc(i.detail)})</li>`).join("")}</ul><p class="sub">Select a department for its commentary.</p>`;
+  }
+  const c = d.commentary;
+  return `<h2>Commentary</h2><p><strong>${esc(c.headline)}</strong></p>
+    <ul>${c.bullets.map(b=>`<li>${esc(b.text)}</li>`).join("") || "<li>No variances above the materiality threshold.</li>"}</ul>
+    ${c.flags.length ? `<h2>Flagged, not explained</h2><ul class="flags">${c.flags.map(f=>`<li>${esc(f)}</li>`).join("")}</ul>` : ""}
+    <p class="sub">Selected and worded by deterministic rules (materiality, line combining, headcount aggregation). An optional AI pass can rewrite the wording, but a guard rejects any figure the code did not compute.</p>`;
+}
+
+function render(){
+  buttons("periods", [["MTD","MTD"],["YTD","YTD"],["FY","Full year"]], "period");
+  buttons("layers", [["executive","Executive"],["functional","Functional"],["regional","Regional"]], "layer");
+  const d = P.data[S.dept][S.period];
+  $("view").innerHTML = {executive, functional, regional}[S.layer](d);
+  $("side").innerHTML = side(d);
+}
+
+$("sub").textContent = `${P.meta.company} | ${P.meta.year}-${String(P.meta.month).padStart(2,"0")} | source: ${P.meta.source_workbook}`;
+$("dept").innerHTML = P.departments.map(d=>`<option value="${d.key}">${esc(d.label)}</option>`).join("");
+$("dept").onchange = e => { S.dept = e.target.value; render(); };
+render();
+</script>
+</body>
+</html>
